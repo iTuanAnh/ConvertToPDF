@@ -16,6 +16,20 @@ LIBREOFFICE_PATH = os.getenv("LIBREOFFICE_PATH") or (
 
 @app.post("/convert-excel-to-pdf")
 async def convert_to_pdf(file: UploadFile = File(...)):
+    # Chỉ cho phép file Word & Excel
+    allowed_exts = {".doc", ".docx", ".xls", ".xlsx", ".xlsm", ".xlsb"}
+    _, ext = os.path.splitext(file.filename or "")
+    ext = ext.lower()
+
+    if ext not in allowed_exts:
+        raise HTTPException(
+            status_code=400,
+            detail="Chỉ hỗ trợ chuyển đổi file Word/Excel (doc, docx, xls, xlsx, xlsm, xlsb).",
+        )
+
+    # Giới hạn dung lượng file: tối đa 10MB
+    max_bytes = 10 * 1024 * 1024
+
     # 1. Tạo tên file tạm duy nhất để tránh xung đột khi nhiều người cùng dùng
     unique_id = str(uuid.uuid4())
     temp_excel = f"temp_{unique_id}_{file.filename}"
@@ -26,8 +40,20 @@ async def convert_to_pdf(file: UploadFile = File(...)):
 
     try:
         # 2. Lưu file Excel tạm thời xuống đĩa
+        total_bytes = 0
+        chunk_size = 1024 * 1024  # 1MB
         with open(temp_excel, "wb") as buffer:
-            buffer.write(await file.read())
+            while True:
+                chunk = await file.read(chunk_size)
+                if not chunk:
+                    break
+                total_bytes += len(chunk)
+                if total_bytes > max_bytes:
+                    raise HTTPException(
+                        status_code=413,
+                        detail="Dung lượng file tối đa là 10MB.",
+                    )
+                buffer.write(chunk)
 
         # 3. Gọi lệnh LibreOffice để convert sang PDF
         # --headless: chạy ngầm không hiện cửa sổ
