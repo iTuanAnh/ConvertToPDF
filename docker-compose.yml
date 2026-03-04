@@ -1,0 +1,9 @@
+services:
+  convert-to-pdf:
+    build: .
+    image: convert-to-pdf:latest
+    ports:
+      - "8900:8900"
+    environment:
+      - LIBREOFFICE_PATH=soffice
+
